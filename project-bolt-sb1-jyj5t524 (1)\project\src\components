@@ -1,0 +1,4360 @@
+import React, { useState } from 'react';
+import { Plus, Search, CreditCard as Edit, Trash2, DollarSign, Download, Printer } from 'lucide-react';
+import { generatePDF, printElement } from '../utils/pdfGenerator';
+
+interface Expense {
+  id: string;
+  type: 'rent' | 'wifi' | 'salary' | 'cleaning' | 'other';
+  amount: number;
+  description: string;
+  date: string;
+}
+
+const Expenses: React.FC = () => {
+  const [expenses, setExpenses] = useState<Expense[]>([
+    {
+      id: '1',
+      type: 'rent',
+      amount: 2500,
+      description: 'Monthly school building rent',
+      date: '2024-01-01'
+    },
+    {
+      id: '2',
+      type: 'wifi',
+      amount: 150,
+      description: 'Internet connection for school',
+      date: '2024-01-05'
+    },
+    {
+      id: '3',
+      type: 'salary',
+      amount: 8000,
+      description: 'Teachers monthly salaries',
+      date: '2024-01-01'
+    },
+    {
+      id: '4',
+      type: 'cleaning',
+      amount: 300,
+      description: 'Cleaning supplies and services',
+      date: '2024-01-10'
+    }
+  ]);
+
+  const [showModal, setShowModal] = useState(false);
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [formData, setFormData] = useState({
+    type: 'rent' as const,
+    amount: '',
+    description: '',
+    date: ''
+  });
+
+  const expenseTypes = [
+    { value: 'rent', label: 'Rent Bill', color: 'bg-red-100 text-red-800' },
+    { value: 'wifi', label: 'WiFi Bill', color: 'bg-blue-100 text-blue-800' },
+    { value: 'salary', label: 'Salaries', color: 'bg-green-100 text-green-800' },
+    { value: 'cleaning', label: 'Cleaning Bill', color: 'bg-purple-100 text-purple-800' },
+    { value: 'other', label: 'Other', color: 'bg-gray-100 text-gray-800' }
+  ];
+
+  const filteredExpenses = expenses.filter(expense =>
+    expense.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    expense.type.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const totalExpenses = filteredExpenses.reduce((sum, expense) => sum + expense.amount, 0);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (editingExpense) {
+      setExpenses(expenses.map(expense =>
+        expense.id === editingExpense.id
+          ? { ...expense, ...formData, amount: parseFloat(formData.amount) }
+          : expense
+      ));
+    } else {
+      const newExpense: Expense = {
+        id: Date.now().toString(),
+        ...formData,
+        amount: parseFloat(formData.amount)
+      };
+      setExpenses([...expenses, newExpense]);
+    }
+
+    setShowModal(false);
+    setEditingExpense(null);
+    setFormData({
+      type: 'rent',
+      amount: '',
+      description: '',
+      date: ''
+    });
+  };
+
+  const handleEdit = (expense: Expense) => {
+    setEditingExpense(expense);
+    setFormData({
+      type: expense.type,
+      amount: expense.amount.toString(),
+      description: expense.description,
+      date: expense.date
+    });
+    setShowModal(true);
+  };
+
+  const handleDelete = (id: string) => {
+    if (confirm('Are you sure you want to delete this expense?')) {
+      setExpenses(expenses.filter(expense => expense.id !== id));
+    }
+  };
+
+  const getExpenseTypeInfo = (type: string) => {
+    return expenseTypes.find(t => t.value === type) || expenseTypes[4];
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <h2 className="text-2xl font-bold text-gray-900">Expenses Management</h2>
+        <div className="flex gap-2">
+          <button
+            onClick={() => printElement('expenses-table')}
+            className="flex items-center space-x-2 bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors"
+          >
+            <Printer className="w-4 h-4" />
+            <span>Print</span>
+          </button>
+          <button
+            onClick={() => generatePDF('expenses-table', 'expenses-report.pdf')}
+            className="flex items-center space-x-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            <span>Export PDF</span>
+          </button>
+          <button
+            onClick={() => setShowModal(true)}
+            className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add Expense</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        {expenseTypes.slice(0, 4).map((type) => {
+          const typeExpenses = filteredExpenses.filter(e => e.type === type.value);
+          const typeTotal = typeExpenses.reduce((sum, e) => sum + e.amount, 0);
+          
+          return (
+            <div key={type.value} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">{type.label}</p>
+                  <p className="text-2xl font-bold text-gray-900">${typeTotal.toLocaleString()}</p>
+                  <p className="text-sm text-gray-500">{typeExpenses.length} entries</p>
+                </div>
+                <DollarSign className="w-8 h-8 text-gray-400" />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+        <input
+          type="text"
+          placeholder="Search expenses..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+        />
+      </div>
+
+      {/* Expenses Table */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div id="expenses-table">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <div className="text-center mb-4">
+              <h1 className="text-2xl font-bold text-emerald-600">Islamic School Management System</h1>
+              <h2 className="text-xl font-semibold text-gray-800">Expenses Report</h2>
+              <p className="text-gray-600">Generated on {new Date().toLocaleDateString()}</p>
+              <p className="text-lg font-semibold text-gray-800 mt-2">
+                Total Expenses: ${totalExpenses.toLocaleString()}
+              </p>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Type
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Description
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Amount
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Date
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider print:hidden">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filteredExpenses.map((expense) => {
+                  const typeInfo = getExpenseTypeInfo(expense.type);
+                  return (
+                    <tr key={expense.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${typeInfo.color}`}>
+                          {typeInfo.label}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm text-gray-900">{expense.description}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900">
+                          ${expense.amount.toLocaleString()}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {new Date(expense.date).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium print:hidden">
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={() => handleEdit(expense)}
+                            className="text-blue-600 hover:text-blue-900"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(expense.id)}
+                            className="text-red-600 hover:text-red-900"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {/* Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full">
+            <div className="p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                {editingExpense ? 'Edit Expense' : 'Add New Expense'}
+              </h3>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Expense Type
+                  </label>
+                  <select
+                    required
+                    value={formData.type}
+                    onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  >
+                    {expenseTypes.map((type) => (
+                      <option key={type.value} value={type.value}>
+                        {type.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Amount (KSH)
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min="0"
+                    step="0.01"
+                    value={formData.amount}
+                    onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Description
+                  </label>
+                  <textarea
+                    required
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    rows={3}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Date
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={formData.date}
+                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  />
+                </div>
+                <div className="flex justify-end space-x-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowModal(false);
+                      setEditingExpense(null);
+                      setFormData({
+                        type: 'rent',
+                        amount: '',
+                        description: '',
+                        date: ''
+                      });
+                    }}
+                    className="px-4 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+                  >
+                    {editingExpense ? 'Update' : 'Add'} Expense
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default Expenses;
+import React, { useState } from 'react';
+import { Plus, Search, CreditCard as Edit, Trash2, Download, Printer, DollarSign, CheckCircle, XCircle } from 'lucide-react';
+import { generatePDF, printElement } from '../utils/pdfGenerator';
+
+interface Fee {
+  id: string;
+  studentId: string;
+  studentName: string;
+  className: string;
+  amount: number;
+  type: string;
+  dueDate: string;
+  paid: boolean;
+  paidDate?: string;
+  paymentMethod?: string;
+}
+
+const Fees: React.FC = () => {
+  const [fees, setFees] = useState<Fee[]>([
+    {
+      id: '1',
+      studentId: '1',
+      studentName: 'Ahmed Hassan',
+      className: 'Grade 6',
+      amount: 150,
+      type: 'Monthly Tuition',
+      dueDate: '2024-02-01',
+      paid: true,
+      paidDate: '2024-01-28',
+      paymentMethod: 'Bank Transfer'
+    },
+    {
+      id: '2',
+      studentId: '2',
+      studentName: 'Fatima Omar',
+      className: 'Grade 4',
+      amount: 150,
+      type: 'Monthly Tuition',
+      dueDate: '2024-02-01',
+      paid: false
+    },
+    {
+      id: '3',
+      studentId: '3',
+      studentName: 'Muhammad Yusuf',
+      className: 'Grade 8',
+      amount: 200,
+      type: 'Monthly Tuition',
+      dueDate: '2024-02-01',
+      paid: true,
+      paidDate: '2024-01-30',
+      paymentMethod: 'Cash'
+    },
+    {
+      id: '4',
+      studentId: '1',
+      studentName: 'Ahmed Hassan',
+      className: 'Grade 6',
+      amount: 50,
+      type: 'Activity Fee',
+      dueDate: '2024-02-15',
+      paid: false
+    }
+  ]);
+
+  const [showModal, setShowModal] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [editingFee, setEditingFee] = useState<Fee | null>(null);
+  const [payingFee, setPayingFee] = useState<Fee | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [formData, setFormData] = useState({
+    studentId: '',
+    studentName: '',
+    className: '',
+    amount: '',
+    type: '',
+    dueDate: ''
+  });
+  const [paymentData, setPaymentData] = useState({
+    paymentMethod: 'cash',
+    paidDate: new Date().toISOString().split('T')[0]
+  });
+
+  const feeTypes = ['Monthly Tuition', 'Registration Fee', 'Activity Fee', 'Exam Fee', 'Book Fee', 'Transport Fee'];
+
+  const filteredFees = fees.filter(fee => {
+    const matchesSearch = fee.studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         fee.type.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || 
+                         (statusFilter === 'paid' && fee.paid) ||
+                         (statusFilter === 'unpaid' && !fee.paid);
+    return matchesSearch && matchesStatus;
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (editingFee) {
+      setFees(fees =>
+        fees.map(fee =>
+          fee.id === editingFee.id
+            ? { ...fee, ...formData, amount: parseFloat(formData.amount) }
+            : fee
+        )
+      );
+    } else {
+      const newFee: Fee = {
+        id: Date.now().toString(),
+        ...formData,
+        amount: parseFloat(formData.amount),
+        paid: false
+      };
+      setFees([...fees, newFee]);
+    }
+
+    setShowModal(false);
+    setEditingFee(null);
+    setFormData({
+      studentId: '',
+      studentName: '',
+      className: '',
+      amount: '',
+      type: '',
+      dueDate: ''
+    });
+  };
+
+  const handlePayment = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (payingFee) {
+      setFees(fees =>
+        fees.map(fee =>
+          fee.id === payingFee.id
+            ? {
+                ...fee,
+                paid: true,
+                paidDate: paymentData.paidDate,
+                paymentMethod: paymentData.paymentMethod
+              }
+            : fee
+        )
+      );
+    }
+
+    setShowPaymentModal(false);
+    setPayingFee(null);
+    setPaymentData({
+      paymentMethod: 'cash',
+      paidDate: new Date().toISOString().split('T')[0]
+    });
+  };
+
+  const handleEdit = (fee: Fee) => {
+    setEditingFee(fee);
+    setFormData({
+      studentId: fee.studentId,
+      studentName: fee.studentName,
+      className: fee.className,
+      amount: fee.amount.toString(),
+      type: fee.type,
+      dueDate: fee.dueDate
+    });
+    setShowModal(true);
+  };
+
+  const handleDelete = (id: string) => {
+    if (confirm('Are you sure you want to delete this fee record?')) {
+      setFees(fees => fees.filter(fee => fee.id !== id));
+    }
+  };
+
+  const handleMarkPaid = (fee: Fee) => {
+    setPayingFee(fee);
+    setShowPaymentModal(true);
+  };
+
+  const stats = {
+    total: fees.reduce((sum, fee) => sum + fee.amount, 0),
+    paid: fees.filter(fee => fee.paid).reduce((sum, fee) => sum + fee.amount, 0),
+    unpaid: fees.filter(fee => !fee.paid).reduce((sum, fee) => sum + fee.amount, 0),
+    overdue: fees.filter(fee => !fee.paid && new Date(fee.dueDate) < new Date()).length
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <h2 className="text-2xl font-bold text-gray-900">Fees Management</h2>
+        <div className="flex gap-2">
+          <button
+            onClick={() => printElement('fees-table')}
+            className="flex items-center space-x-2 bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors"
+          >
+            <Printer className="w-4 h-4" />
+            <span>Print</span>
+          </button>
+          <button
+            onClick={() => generatePDF('fees-table', 'fees-report.pdf')}
+            className="flex items-center space-x-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            <span>Export PDF</span>
+          </button>
+          <button
+            onClick={() => setShowModal(true)}
+            className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add Fee</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Total Fees</p>
+              <p className="text-3xl font-bold text-gray-900">${stats.total.toLocaleString()}</p>
+            </div>
+            <DollarSign className="w-8 h-8 text-gray-500" />
+          </div>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Collected</p>
+              <p className="text-3xl font-bold text-green-600">${stats.paid.toLocaleString()}</p>
+            </div>
+            <CheckCircle className="w-8 h-8 text-green-500" />
+          </div>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Outstanding</p>
+              <p className="text-3xl font-bold text-red-600">${stats.unpaid.toLocaleString()}</p>
+            </div>
+            <XCircle className="w-8 h-8 text-red-500" />
+          </div>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Overdue</p>
+              <p className="text-3xl font-bold text-orange-600">{stats.overdue}</p>
+            </div>
+            <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
+              <span className="text-orange-600 font-bold">!</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input
+                type="text"
+                placeholder="Search fees..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+            >
+              <option value="all">All Status</option>
+              <option value="paid">Paid</option>
+              <option value="unpaid">Unpaid</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Fees Table */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div id="fees-table">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <div className="text-center mb-4">
+              <h1 className="text-2xl font-bold text-emerald-600">Islamic School Management System</h1>
+              <h2 className="text-xl font-semibold text-gray-800">Fees Report</h2>
+              <p className="text-gray-600">Generated on {new Date().toLocaleDateString()}</p>
+              <div className="mt-2 text-sm text-gray-600">
+                <span className="mr-4">Total: ${stats.total.toLocaleString()}</span>
+                <span className="mr-4 text-green-600">Collected: ${stats.paid.toLocaleString()}</span>
+                <span className="text-red-600">Outstanding: ${stats.unpaid.toLocaleString()}</span>
+              </div>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Student
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Fee Type
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Amount
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Due Date
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Payment Details
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider print:hidden">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filteredFees.map((fee) => (
+                  <tr key={fee.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">{fee.studentName}</div>
+                        <div className="text-sm text-gray-500">{fee.className}</div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {fee.type}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      ${fee.amount.toLocaleString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {new Date(fee.dueDate).toLocaleDateString()}
+                      {!fee.paid && new Date(fee.dueDate) < new Date() && (
+                        <span className="ml-2 text-xs text-red-600 font-medium">OVERDUE</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center space-x-2">
+                        {fee.paid ? (
+                          <>
+                            <CheckCircle className="w-5 h-5 text-green-500" />
+                            <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                              Paid
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <XCircle className="w-5 h-5 text-red-500" />
+                            <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
+                              Unpaid
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {fee.paid ? (
+                        <div>
+                          <div>{fee.paymentMethod}</div>
+                          <div className="text-xs text-gray-500">
+                            {fee.paidDate && new Date(fee.paidDate).toLocaleDateString()}
+                          </div>
+                        </div>
+                      ) : (
+                        '-'
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium print:hidden">
+                      <div className="flex space-x-2">
+                        {!fee.paid && (
+                          <button
+                            onClick={() => handleMarkPaid(fee)}
+                            className="text-green-600 hover:text-green-900 text-xs bg-green-100 px-2 py-1 rounded"
+                          >
+                            Mark Paid
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleEdit(fee)}
+                          className="text-blue-600 hover:text-blue-900"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(fee.id)}
+                          className="text-red-600 hover:text-red-900"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {/* Add/Edit Fee Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                {editingFee ? 'Edit Fee' : 'Add New Fee'}
+              </h3>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Student Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.studentName}
+                    onChange={(e) => setFormData({ ...formData, studentName: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Class</label>
+                  <select
+                    required
+                    value={formData.className}
+                    onChange={(e) => setFormData({ ...formData, className: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  >
+                    <option value="">Select Class</option>
+                    <option value="Grade 1">Grade 1</option>
+                    <option value="Grade 2">Grade 2</option>
+                    <option value="Grade 3">Grade 3</option>
+                    <option value="Grade 4">Grade 4</option>
+                    <option value="Grade 5">Grade 5</option>
+                    <option value="Grade 6">Grade 6</option>
+                    <option value="Grade 7">Grade 7</option>
+                    <option value="Grade 8">Grade 8</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Fee Type</label>
+                  <select
+                    required
+                    value={formData.type}
+                    onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  >
+                    <option value="">Select Fee Type</option>
+                    {feeTypes.map((type) => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Amount ($)</label>
+                  <input
+                    type="number"
+                    required
+                    min="0"
+                    step="0.01"
+                    value={formData.amount}
+                    onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
+                  <input
+                    type="date"
+                    required
+                    value={formData.dueDate}
+                    onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  />
+                </div>
+                <div className="flex justify-end space-x-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowModal(false);
+                      setEditingFee(null);
+                      setFormData({
+                        studentId: '',
+                        studentName: '',
+                        className: '',
+                        amount: '',
+                        type: '',
+                        dueDate: ''
+                      });
+                    }}
+                    className="px-4 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+                  >
+                    {editingFee ? 'Update' : 'Add'} Fee
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payment Modal */}
+      {showPaymentModal && payingFee && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full">
+            <div className="p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Record Payment</h3>
+              <div className="mb-4 p-4 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-600">Student: <span className="font-medium">{payingFee.studentName}</span></p>
+                <p className="text-sm text-gray-600">Fee: <span className="font-medium">{payingFee.type}</span></p>
+                <p className="text-sm text-gray-600">Amount: <span className="font-medium">${payingFee.amount}</span></p>
+              </div>
+              <form onSubmit={handlePayment} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
+                  <select
+                    required
+                    value={paymentData.paymentMethod}
+                    onChange={(e) => setPaymentData({ ...paymentData, paymentMethod: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  >
+                    <option value="cash">Cash</option>
+                    <option value="bank_transfer">Bank Transfer</option>
+                    <option value="card">Card</option>
+                    <option value="check">Check</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Payment Date</label>
+                  <input
+                    type="date"
+                    required
+                    value={paymentData.paidDate}
+                    onChange={(e) => setPaymentData({ ...paymentData, paidDate: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  />
+                </div>
+                <div className="flex justify-end space-x-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowPaymentModal(false);
+                      setPayingFee(null);
+                      setPaymentData({
+                        paymentMethod: 'cash',
+                        paidDate: new Date().toISOString().split('T')[0]
+                      });
+                    }}
+                    className="px-4 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+                  >
+                    Record Payment
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default Fees;
+import React, { useState } from 'react';
+import { Plus, Search, CreditCard as Edit, Trash2, Download, Printer, AlertCircle, CheckCircle, Clock } from 'lucide-react';
+import { generatePDF, printElement } from '../utils/pdfGenerator';
+
+interface JobRequest {
+  id: string;
+  title: string;
+  description: string;
+  requestedBy: string;
+  priority: 'low' | 'medium' | 'high';
+  status: 'pending' | 'in_progress' | 'completed';
+  dateRequested: string;
+  dueDate: string;
+  assignedTo?: string;
+}
+
+const JobRequests: React.FC = () => {
+  const [jobRequests, setJobRequests] = useState<JobRequest[]>([
+    {
+      id: '1',
+      title: 'Fix classroom projector',
+      description: 'The projector in Grade 5 classroom is not working properly. Students cannot see the presentations clearly.',
+      requestedBy: 'Ustadha Fatima Omar',
+      priority: 'high',
+      status: 'pending',
+      dateRequested: '2024-01-15',
+      dueDate: '2024-01-17',
+      assignedTo: 'Ahmad Maintenance'
+    },
+    {
+      id: '2',
+      title: 'Replace broken window',
+      description: 'Window in the library has a crack and needs immediate replacement for safety.',
+      requestedBy: 'Ustadh Muhammad Ali',
+      priority: 'medium',
+      status: 'in_progress',
+      dateRequested: '2024-01-14',
+      dueDate: '2024-01-20',
+      assignedTo: 'Building Maintenance Team'
+    },
+    {
+      id: '3',
+      title: 'Install new whiteboard',
+      description: 'Grade 3 classroom needs a new whiteboard as the current one is damaged.',
+      requestedBy: 'Ustadh Ahmad Hassan',
+      priority: 'low',
+      status: 'completed',
+      dateRequested: '2024-01-10',
+      dueDate: '2024-01-18',
+      assignedTo: 'Installation Team'
+    }
+  ]);
+
+  const [showModal, setShowModal] = useState(false);
+  const [editingRequest, setEditingRequest] = useState<JobRequest | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [priorityFilter, setPriorityFilter] = useState('all');
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    requestedBy: '',
+    priority: 'medium' as const,
+    status: 'pending' as const,
+    dateRequested: '',
+    dueDate: '',
+    assignedTo: ''
+  });
+
+  const filteredRequests = jobRequests.filter(request => {
+    const matchesSearch = request.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         request.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         request.requestedBy.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || request.status === statusFilter;
+    const matchesPriority = priorityFilter === 'all' || request.priority === priorityFilter;
+    return matchesSearch && matchesStatus && matchesPriority;
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (editingRequest) {
+      setJobRequests(requests =>
+        requests.map(request =>
+          request.id === editingRequest.id ? { ...request, ...formData } : request
+        )
+      );
+    } else {
+      const newRequest: JobRequest = {
+        id: Date.now().toString(),
+        ...formData
+      };
+      setJobRequests([...jobRequests, newRequest]);
+    }
+
+    setShowModal(false);
+    setEditingRequest(null);
+    setFormData({
+      title: '',
+      description: '',
+      requestedBy: '',
+      priority: 'medium',
+      status: 'pending',
+      dateRequested: '',
+      dueDate: '',
+      assignedTo: ''
+    });
+  };
+
+  const handleEdit = (request: JobRequest) => {
+    setEditingRequest(request);
+    setFormData(request);
+    setShowModal(true);
+  };
+
+  const handleDelete = (id: string) => {
+    if (confirm('Are you sure you want to delete this job request?')) {
+      setJobRequests(requests => requests.filter(request => request.id !== id));
+    }
+  };
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'high': return 'bg-red-100 text-red-800';
+      case 'medium': return 'bg-yellow-100 text-yellow-800';
+      case 'low': return 'bg-green-100 text-green-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'completed': return <CheckCircle className="w-5 h-5 text-green-500" />;
+      case 'in_progress': return <Clock className="w-5 h-5 text-yellow-500" />;
+      case 'pending': return <AlertCircle className="w-5 h-5 text-red-500" />;
+      default: return null;
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed': return 'bg-green-100 text-green-800';
+      case 'in_progress': return 'bg-yellow-100 text-yellow-800';
+      case 'pending': return 'bg-red-100 text-red-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const stats = {
+    total: jobRequests.length,
+    pending: jobRequests.filter(r => r.status === 'pending').length,
+    inProgress: jobRequests.filter(r => r.status === 'in_progress').length,
+    completed: jobRequests.filter(r => r.status === 'completed').length
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <h2 className="text-2xl font-bold text-gray-900">Job Requests Management</h2>
+        <div className="flex gap-2">
+          <button
+            onClick={() => printElement('job-requests-table')}
+            className="flex items-center space-x-2 bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors"
+          >
+            <Printer className="w-4 h-4" />
+            <span>Print</span>
+          </button>
+          <button
+            onClick={() => generatePDF('job-requests-table', 'job-requests.pdf')}
+            className="flex items-center space-x-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            <span>Export PDF</span>
+          </button>
+          <button
+            onClick={() => setShowModal(true)}
+            className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add Request</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Total Requests</p>
+              <p className="text-3xl font-bold text-gray-900">{stats.total}</p>
+            </div>
+            <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+              <span className="text-blue-600 font-bold">{stats.total}</span>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Pending</p>
+              <p className="text-3xl font-bold text-red-600">{stats.pending}</p>
+            </div>
+            <AlertCircle className="w-8 h-8 text-red-500" />
+          </div>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">In Progress</p>
+              <p className="text-3xl font-bold text-yellow-600">{stats.inProgress}</p>
+            </div>
+            <Clock className="w-8 h-8 text-yellow-500" />
+          </div>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Completed</p>
+              <p className="text-3xl font-bold text-green-600">{stats.completed}</p>
+            </div>
+            <CheckCircle className="w-8 h-8 text-green-500" />
+          </div>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input
+                type="text"
+                placeholder="Search requests..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+            >
+              <option value="all">All Status</option>
+              <option value="pending">Pending</option>
+              <option value="in_progress">In Progress</option>
+              <option value="completed">Completed</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Priority</label>
+            <select
+              value={priorityFilter}
+              onChange={(e) => setPriorityFilter(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+            >
+              <option value="all">All Priorities</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Job Requests Table */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div id="job-requests-table">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <div className="text-center mb-4">
+              <h1 className="text-2xl font-bold text-emerald-600">Islamic School Management System</h1>
+              <h2 className="text-xl font-semibold text-gray-800">Job Requests Report</h2>
+              <p className="text-gray-600">Generated on {new Date().toLocaleDateString()}</p>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Request
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Requested By
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Priority
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Due Date
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Assigned To
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider print:hidden">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filteredRequests.map((request) => (
+                  <tr key={request.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4">
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">{request.title}</div>
+                        <div className="text-sm text-gray-500">{request.description.substring(0, 100)}...</div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {request.requestedBy}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getPriorityColor(request.priority)}`}>
+                        {request.priority.charAt(0).toUpperCase() + request.priority.slice(1)}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center space-x-2">
+                        {getStatusIcon(request.status)}
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(request.status)}`}>
+                          {request.status.replace('_', ' ').charAt(0).toUpperCase() + request.status.replace('_', ' ').slice(1)}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {new Date(request.dueDate).toLocaleDateString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {request.assignedTo || 'Unassigned'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium print:hidden">
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => handleEdit(request)}
+                          className="text-blue-600 hover:text-blue-900"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(request.id)}
+                          className="text-red-600 hover:text-red-900"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {/* Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                {editingRequest ? 'Edit Job Request' : 'Add New Job Request'}
+              </h3>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.title}
+                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                  <textarea
+                    required
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    rows={3}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Requested By</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.requestedBy}
+                    onChange={(e) => setFormData({ ...formData, requestedBy: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
+                    <select
+                      required
+                      value={formData.priority}
+                      onChange={(e) => setFormData({ ...formData, priority: e.target.value as any })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    >
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                    <select
+                      required
+                      value={formData.status}
+                      onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    >
+                      <option value="pending">Pending</option>
+                      <option value="in_progress">In Progress</option>
+                      <option value="completed">Completed</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Date Requested</label>
+                    <input
+                      type="date"
+                      required
+                      value={formData.dateRequested}
+                      onChange={(e) => setFormData({ ...formData, dateRequested: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
+                    <input
+                      type="date"
+                      required
+                      value={formData.dueDate}
+                      onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Assigned To</label>
+                  <input
+                    type="text"
+                    value={formData.assignedTo}
+                    onChange={(e) => setFormData({ ...formData, assignedTo: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    placeholder="Optional"
+                  />
+                </div>
+                <div className="flex justify-end space-x-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowModal(false);
+                      setEditingRequest(null);
+                      setFormData({
+                        title: '',
+                        description: '',
+                        requestedBy: '',
+                        priority: 'medium',
+                        status: 'pending',
+                        dateRequested: '',
+                        dueDate: '',
+                        assignedTo: ''
+                      });
+                    }}
+                    className="px-4 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+                  >
+                    {editingRequest ? 'Update' : 'Add'} Request
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default JobRequests;
+import React, { useState } from 'react';
+import { Users, DollarSign, GraduationCap, Calendar, Clock, ShoppingCart, Briefcase, FileText, CreditCard, Settings, Menu, X, Fuel as Mosque } from 'lucide-react';
+
+interface LayoutProps {
+  children: React.ReactNode;
+  currentPage: string;
+  onPageChange: (page: string) => void;
+}
+
+const Layout: React.FC<LayoutProps> = ({ children, currentPage, onPageChange }) => {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const menuItems = [
+    { id: 'dashboard', label: 'Dashboard', icon: Mosque },
+    { id: 'students', label: 'Students', icon: Users },
+    { id: 'expenses', label: 'Expenses', icon: DollarSign },
+    { id: 'classes', label: 'Classes', icon: GraduationCap },
+    { id: 'attendance', label: 'Attendance', icon: Calendar },
+    { id: 'timetable', label: 'Timetable', icon: Clock },
+    { id: 'pos', label: 'POS', icon: ShoppingCart },
+    { id: 'jobs', label: 'Job Requests', icon: Briefcase },
+    { id: 'exams', label: 'Exams', icon: FileText },
+    { id: 'fees', label: 'Fees', icon: CreditCard },
+    { id: 'settings', label: 'Settings', icon: Settings },
+  ];
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Mobile sidebar overlay */}
+      {sidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Sidebar */}
+      <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-gradient-to-b from-emerald-800 to-emerald-900 transform ${
+        sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+      } transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0`}>
+        <div className="flex items-center justify-between h-16 px-6 bg-emerald-900">
+          <div className="flex items-center space-x-3">
+            <Mosque className="w-8 h-8 text-white" />
+            <div>
+              <span className="text-xl font-bold text-white">Islamic School</span>
+              <div className="text-xs text-emerald-200">Management System</div>
+            </div>
+          </div>
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="lg:hidden text-white hover:text-gray-300"
+          >
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+
+        <nav className="mt-8 px-4">
+          {menuItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.id}
+                onClick={() => {
+                  onPageChange(item.id);
+                  setSidebarOpen(false);
+                }}
+                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg mb-2 transition-colors ${
+                  currentPage === item.id
+                    ? 'bg-emerald-700 text-white'
+                    : 'text-emerald-100 hover:bg-emerald-700 hover:text-white'
+                }`}
+              >
+                <Icon className="w-5 h-5" />
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+      </div>
+
+      {/* Main content */}
+      <div className="lg:ml-64">
+        {/* Top bar */}
+        <div className="bg-white shadow-sm border-b border-gray-200">
+          <div className="flex items-center justify-between h-16 px-6">
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="lg:hidden text-gray-600 hover:text-gray-900"
+            >
+              <Menu className="w-6 h-6" />
+            </button>
+            <h1 className="text-2xl font-semibold text-gray-900 capitalize">
+              {currentPage === 'dashboard' ? 'Dashboard' : currentPage}
+            </h1>
+            <div className="flex items-center space-x-4">
+              <span className="text-sm text-gray-600">
+                {new Date().toLocaleDateString('en-US', { 
+                  weekday: 'long', 
+                  year: 'numeric', 
+                  month: 'long', 
+                  day: 'numeric' 
+                })}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Page content */}
+        <main className="p-6">
+          {children}
+        </main>
+      </div>
+    </div>
+  );
+};
+
+export default Layout;
+import React, { useState } from 'react';
+import { Plus, Minus, ShoppingCart, Printer, Download, Trash2, Calculator } from 'lucide-react';
+import { generatePDF, printElement } from '../utils/pdfGenerator';
+
+interface POSItem {
+  id: string;
+  name: string;
+  price: number;
+  quantity: number;
+}
+
+interface Transaction {
+  id: string;
+  items: POSItem[];
+  total: number;
+  paymentMethod: string;
+  date: string;
+  time: string;
+}
+
+const POS: React.FC = () => {
+  const [availableItems] = useState([
+    { id: '1', name: 'School Uniform', price: 25.00 },
+    { id: '2', name: 'Islamic Books', price: 15.00 },
+    { id: '3', name: 'Prayer Mat', price: 20.00 },
+    { id: '4', name: 'Quran', price: 30.00 },
+    { id: '5', name: 'School Bag', price: 35.00 },
+    { id: '6', name: 'Stationery Set', price: 12.00 },
+    { id: '7', name: 'Water Bottle', price: 8.00 },
+    { id: '8', name: 'Lunch Box', price: 18.00 }
+  ]);
+
+  const [cartItems, setCartItems] = useState<POSItem[]>([]);
+  const [paymentMethod, setPaymentMethod] = useState('cash');
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [showReceipt, setShowReceipt] = useState(false);
+  const [currentTransaction, setCurrentTransaction] = useState<Transaction | null>(null);
+
+  const addToCart = (item: { id: string; name: string; price: number }) => {
+    const existingItem = cartItems.find(cartItem => cartItem.id === item.id);
+    
+    if (existingItem) {
+      setCartItems(cartItems.map(cartItem =>
+        cartItem.id === item.id
+          ? { ...cartItem, quantity: cartItem.quantity + 1 }
+          : cartItem
+      ));
+    } else {
+      setCartItems([...cartItems, { ...item, quantity: 1 }]);
+    }
+  };
+
+  const updateQuantity = (id: string, change: number) => {
+    setCartItems(cartItems.map(item => {
+      if (item.id === id) {
+        const newQuantity = Math.max(0, item.quantity + change);
+        return newQuantity === 0 ? null : { ...item, quantity: newQuantity };
+      }
+      return item;
+    }).filter(Boolean) as POSItem[]);
+  };
+
+  const removeFromCart = (id: string) => {
+    setCartItems(cartItems.filter(item => item.id !== id));
+  };
+
+  const calculateTotal = () => {
+    return cartItems.reduce((total, item) => total + (item.price * item.quantity), 0);
+  };
+
+  const processPayment = () => {
+    if (cartItems.length === 0) return;
+
+    const transaction: Transaction = {
+      id: Date.now().toString(),
+      items: [...cartItems],
+      total: calculateTotal(),
+      paymentMethod,
+      date: new Date().toLocaleDateString(),
+      time: new Date().toLocaleTimeString()
+    };
+
+    setTransactions([transaction, ...transactions]);
+    setCurrentTransaction(transaction);
+    setCartItems([]);
+    setShowReceipt(true);
+  };
+
+  const clearCart = () => {
+    setCartItems([]);
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <h2 className="text-2xl font-bold text-gray-900">Point of Sale (POS)</h2>
+        <div className="flex gap-2">
+          <button
+            onClick={clearCart}
+            className="flex items-center space-x-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
+          >
+            <Trash2 className="w-4 h-4" />
+            <span>Clear Cart</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Products */}
+        <div className="lg:col-span-2">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Available Items</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+              {availableItems.map((item) => (
+                <div key={item.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                  <h4 className="font-medium text-gray-900 mb-2">{item.name}</h4>
+                  <p className="text-lg font-bold text-emerald-600 mb-3">${item.price.toFixed(2)}</p>
+                  <button
+                    onClick={() => addToCart(item)}
+                    className="w-full flex items-center justify-center space-x-2 bg-emerald-600 text-white px-3 py-2 rounded-lg hover:bg-emerald-700 transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add to Cart</span>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Cart */}
+        <div className="space-y-6">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center space-x-2 mb-4">
+              <ShoppingCart className="w-5 h-5 text-emerald-600" />
+              <h3 className="text-lg font-semibold text-gray-900">Shopping Cart</h3>
+            </div>
+
+            {cartItems.length === 0 ? (
+              <p className="text-gray-500 text-center py-8">Cart is empty</p>
+            ) : (
+              <div className="space-y-4">
+                {cartItems.map((item) => (
+                  <div key={item.id} className="flex items-center justify-between border-b border-gray-100 pb-3">
+                    <div className="flex-1">
+                      <h4 className="font-medium text-gray-900">{item.name}</h4>
+                      <p className="text-sm text-gray-600">${item.price.toFixed(2)} each</p>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => updateQuantity(item.id, -1)}
+                        className="p-1 rounded-full bg-gray-100 hover:bg-gray-200"
+                      >
+                        <Minus className="w-4 h-4" />
+                      </button>
+                      <span className="w-8 text-center font-medium">{item.quantity}</span>
+                      <button
+                        onClick={() => updateQuantity(item.id, 1)}
+                        className="p-1 rounded-full bg-gray-100 hover:bg-gray-200"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => removeFromCart(item.id)}
+                        className="p-1 rounded-full bg-red-100 hover:bg-red-200 text-red-600 ml-2"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                <div className="pt-4 border-t border-gray-200">
+                  <div className="flex justify-between items-center mb-4">
+                    <span className="text-lg font-semibold text-gray-900">Total:</span>
+                    <span className="text-2xl font-bold text-emerald-600">${calculateTotal().toFixed(2)}</span>
+                  </div>
+
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Payment Method</label>
+                    <select
+                      value={paymentMethod}
+                      onChange={(e) => setPaymentMethod(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    >
+                      <option value="cash">Cash</option>
+                      <option value="card">Card</option>
+                      <option value="bank_transfer">Bank Transfer</option>
+                    </select>
+                  </div>
+
+                  <button
+                    onClick={processPayment}
+                    className="w-full flex items-center justify-center space-x-2 bg-emerald-600 text-white px-4 py-3 rounded-lg hover:bg-emerald-700 transition-colors"
+                  >
+                    <Calculator className="w-5 h-5" />
+                    <span>Process Payment</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Recent Transactions */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Transactions</h3>
+            {transactions.length === 0 ? (
+              <p className="text-gray-500 text-center py-4">No transactions yet</p>
+            ) : (
+              <div className="space-y-3">
+                {transactions.slice(0, 5).map((transaction) => (
+                  <div key={transaction.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                    <div>
+                      <p className="font-medium text-gray-900">${transaction.total.toFixed(2)}</p>
+                      <p className="text-sm text-gray-600">{transaction.date} {transaction.time}</p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setCurrentTransaction(transaction);
+                        setShowReceipt(true);
+                      }}
+                      className="text-emerald-600 hover:text-emerald-700 text-sm font-medium"
+                    >
+                      View Receipt
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Receipt Modal */}
+      {showReceipt && currentTransaction && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Receipt</h3>
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => printElement('receipt-content')}
+                    className="flex items-center space-x-1 bg-gray-600 text-white px-3 py-1 rounded text-sm hover:bg-gray-700"
+                  >
+                    <Printer className="w-4 h-4" />
+                    <span>Print</span>
+                  </button>
+                  <button
+                    onClick={() => generatePDF('receipt-content', `receipt-${currentTransaction.id}.pdf`)}
+                    className="flex items-center space-x-1 bg-emerald-600 text-white px-3 py-1 rounded text-sm hover:bg-emerald-700"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>PDF</span>
+                  </button>
+                </div>
+              </div>
+
+              <div id="receipt-content" className="border border-gray-200 p-6 rounded-lg">
+                <div className="text-center mb-6">
+                  <h1 className="text-xl font-bold text-emerald-600">Islamic School</h1>
+                  <p className="text-sm text-gray-600">Management System</p>
+                  <p className="text-sm text-gray-600">Receipt #{currentTransaction.id}</p>
+                </div>
+
+                <div className="mb-4">
+                  <p className="text-sm text-gray-600">Date: {currentTransaction.date}</p>
+                  <p className="text-sm text-gray-600">Time: {currentTransaction.time}</p>
+                  <p className="text-sm text-gray-600">Payment: {currentTransaction.paymentMethod.replace('_', ' ').toUpperCase()}</p>
+                </div>
+
+                <div className="border-t border-gray-200 pt-4 mb-4">
+                  {currentTransaction.items.map((item) => (
+                    <div key={item.id} className="flex justify-between items-center mb-2">
+                      <div>
+                        <p className="font-medium">{item.name}</p>
+                        <p className="text-sm text-gray-600">${item.price.toFixed(2)} x {item.quantity}</p>
+                      </div>
+                      <p className="font-medium">${(item.price * item.quantity).toFixed(2)}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="border-t border-gray-200 pt-4">
+                  <div className="flex justify-between items-center">
+                    <p className="text-lg font-bold">Total:</p>
+                    <p className="text-lg font-bold text-emerald-600">KSH {currentTransaction.total.toFixed(2)}</p>
+                  </div>
+                </div>
+
+                <div className="text-center mt-6 pt-4 border-t border-gray-200">
+                  <p className="text-sm text-gray-600">Thank you for your purchase!</p>
+                  <p className="text-sm text-gray-600">Barakallahu feeki</p>
+                </div>
+              </div>
+
+              <div className="flex justify-end mt-4">
+                <button
+                  onClick={() => setShowReceipt(false)}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default POS;
+import React, { useState } from 'react';
+import { Save, User, Lock, Palette, School, Phone, MapPin } from 'lucide-react';
+
+interface Settings {
+  schoolName: string;
+  schoolAddress: string;
+  schoolPhone: string;
+  primaryColor: string;
+  secondaryColor: string;
+  username: string;
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+}
+
+const Settings: React.FC = () => {
+  const [settings, setSettings] = useState<Settings>({
+    schoolName: 'Islamic School Management System',
+    schoolAddress: '123 Education Street, Knowledge City',
+    schoolPhone: '+1 (555) 123-4567',
+    primaryColor: '#059669',
+    secondaryColor: '#10b981',
+    username: 'admin',
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+
+  const [activeTab, setActiveTab] = useState('school');
+  const [message, setMessage] = useState('');
+
+  const handleSave = (section: string) => {
+    // In a real application, this would save to the database
+    setMessage(`${section} settings saved successfully!`);
+    setTimeout(() => setMessage(''), 3000);
+    
+    // Clear password fields after saving
+    if (section === 'Security') {
+      setSettings({
+        ...settings,
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: ''
+      });
+    }
+  };
+
+  const handleColorChange = (colorType: 'primaryColor' | 'secondaryColor', color: string) => {
+    setSettings({ ...settings, [colorType]: color });
+    
+    // Apply color changes to CSS variables (in a real app, this would be more sophisticated)
+    if (colorType === 'primaryColor') {
+      document.documentElement.style.setProperty('--primary-color', color);
+    }
+  };
+
+  const predefinedColors = [
+    '#059669', // Emerald
+    '#0ea5e9', // Sky Blue
+    '#8b5cf6', // Violet
+    '#f59e0b', // Amber
+    '#ef4444', // Red
+    '#06b6d4', // Cyan
+    '#84cc16', // Lime
+    '#ec4899', // Pink
+  ];
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-gray-900">Settings</h2>
+        {message && (
+          <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-2 rounded">
+            {message}
+          </div>
+        )}
+      </div>
+
+      {/* Tabs */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+        <div className="border-b border-gray-200">
+          <nav className="flex space-x-8 px-6">
+            {[
+              { id: 'school', label: 'School Info', icon: School },
+              { id: 'appearance', label: 'Appearance', icon: Palette },
+              { id: 'security', label: 'Security', icon: Lock }
+            ].map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center space-x-2 py-4 px-1 border-b-2 font-medium text-sm ${
+                    activeTab === tab.id
+                      ? 'border-emerald-500 text-emerald-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  <Icon className="w-5 h-5" />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+
+        <div className="p-6">
+          {/* School Information Tab */}
+          {activeTab === 'school' && (
+            <div className="space-y-6">
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                <School className="w-5 h-5 mr-2" />
+                School Information
+              </h3>
+              
+              <div className="grid grid-cols-1 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    School Name
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.schoolName}
+                    onChange={(e) => setSettings({ ...settings, schoolName: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <MapPin className="w-4 h-4 inline mr-1" />
+                    School Address
+                  </label>
+                  <textarea
+                    value={settings.schoolAddress}
+                    onChange={(e) => setSettings({ ...settings, schoolAddress: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    rows={3}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <Phone className="w-4 h-4 inline mr-1" />
+                    School Phone
+                  </label>
+                  <input
+                    type="tel"
+                    value={settings.schoolPhone}
+                    onChange={(e) => setSettings({ ...settings, schoolPhone: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  onClick={() => handleSave('School Information')}
+                  className="flex items-center space-x-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>Save Changes</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Appearance Tab */}
+          {activeTab === 'appearance' && (
+            <div className="space-y-6">
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                <Palette className="w-5 h-5 mr-2" />
+                Appearance Settings
+              </h3>
+
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-3">
+                    Primary Color
+                  </label>
+                  <div className="flex items-center space-x-4">
+                    <input
+                      type="color"
+                      value={settings.primaryColor}
+                      onChange={(e) => handleColorChange('primaryColor', e.target.value)}
+                      className="w-12 h-12 border border-gray-300 rounded-lg cursor-pointer"
+                    />
+                    <input
+                      type="text"
+                      value={settings.primaryColor}
+                      onChange={(e) => handleColorChange('primaryColor', e.target.value)}
+                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                      placeholder="#059669"
+                    />
+                  </div>
+                  <div className="mt-3">
+                    <p className="text-sm text-gray-600 mb-2">Quick Colors:</p>
+                    <div className="flex space-x-2">
+                      {predefinedColors.map((color) => (
+                        <button
+                          key={color}
+                          onClick={() => handleColorChange('primaryColor', color)}
+                          className="w-8 h-8 rounded-lg border-2 border-gray-300 hover:border-gray-400 transition-colors"
+                          style={{ backgroundColor: color }}
+                          title={color}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-3">
+                    Secondary Color
+                  </label>
+                  <div className="flex items-center space-x-4">
+                    <input
+                      type="color"
+                      value={settings.secondaryColor}
+                      onChange={(e) => handleColorChange('secondaryColor', e.target.value)}
+                      className="w-12 h-12 border border-gray-300 rounded-lg cursor-pointer"
+                    />
+                    <input
+                      type="text"
+                      value={settings.secondaryColor}
+                      onChange={(e) => handleColorChange('secondaryColor', e.target.value)}
+                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                      placeholder="#10b981"
+                    />
+                  </div>
+                </div>
+
+                {/* Color Preview */}
+                <div className="border border-gray-200 rounded-lg p-4">
+                  <h4 className="text-sm font-medium text-gray-700 mb-3">Preview</h4>
+                  <div className="space-y-3">
+                    <button
+                      className="px-4 py-2 rounded-lg text-white font-medium"
+                      style={{ backgroundColor: settings.primaryColor }}
+                    >
+                      Primary Button
+                    </button>
+                    <button
+                      className="px-4 py-2 rounded-lg text-white font-medium"
+                      style={{ backgroundColor: settings.secondaryColor }}
+                    >
+                      Secondary Button
+                    </button>
+                    <div
+                      className="h-4 rounded-full"
+                      style={{ backgroundColor: settings.primaryColor, opacity: 0.2 }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  onClick={() => handleSave('Appearance')}
+                  className="flex items-center space-x-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>Save Changes</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Security Tab */}
+          {activeTab === 'security' && (
+            <div className="space-y-6">
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                <Lock className="w-5 h-5 mr-2" />
+                Security Settings
+              </h3>
+
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <User className="w-4 h-4 inline mr-1" />
+                    Username
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.username}
+                    onChange={(e) => setSettings({ ...settings, username: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  />
+                </div>
+
+                <div className="border-t border-gray-200 pt-6">
+                  <h4 className="text-md font-medium text-gray-900 mb-4">Change Password</h4>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Current Password
+                      </label>
+                      <input
+                        type="password"
+                        value={settings.currentPassword}
+                        onChange={(e) => setSettings({ ...settings, currentPassword: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        New Password
+                      </label>
+                      <input
+                        type="password"
+                        value={settings.newPassword}
+                        onChange={(e) => setSettings({ ...settings, newPassword: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Confirm New Password
+                      </label>
+                      <input
+                        type="password"
+                        value={settings.confirmPassword}
+                        onChange={(e) => setSettings({ ...settings, confirmPassword: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                      />
+                    </div>
+
+                    {settings.newPassword && settings.confirmPassword && settings.newPassword !== settings.confirmPassword && (
+                      <p className="text-sm text-red-600">Passwords do not match</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <h5 className="text-sm font-medium text-yellow-800 mb-2">Password Requirements:</h5>
+                  <ul className="text-sm text-yellow-700 space-y-1">
+                    <li>• At least 8 characters long</li>
+                    <li>• Include uppercase and lowercase letters</li>
+                    <li>• Include at least one number</li>
+                    <li>• Include at least one special character</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  onClick={() => handleSave('Security')}
+                  disabled={settings.newPassword !== settings.confirmPassword}
+                  className="flex items-center space-x-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>Save Changes</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Settings;
+import React, { useState } from 'react';
+import { Plus, Search, CreditCard as Edit, Trash2, Phone, User, Download } from 'lucide-react';
+import { generatePDF, printElement } from '../utils/pdfGenerator';
+
+interface Student {
+  id: string;
+  name: string;
+  age: number;
+  class: string;
+  guardianName: string;
+  guardianPhone: string;
+  address: string;
+  enrollmentDate: string;
+}
+
+const Students: React.FC = () => {
+  const [students, setStudents] = useState<Student[]>([
+    {
+      id: '1',
+      name: 'Ahmed Hassan',
+      age: 12,
+      class: 'Grade 6',
+      guardianName: 'Hassan Ali',
+      guardianPhone: '+1234567890',
+      address: '123 Main St, City',
+      enrollmentDate: '2024-01-15'
+    },
+    {
+      id: '2',
+      name: 'Fatima Omar',
+      age: 10,
+      class: 'Grade 4',
+      guardianName: 'Omar Ibrahim',
+      guardianPhone: '+1234567891',
+      address: '456 Oak Ave, City',
+      enrollmentDate: '2024-01-20'
+    },
+    {
+      id: '3',
+      name: 'Muhammad Yusuf',
+      age: 14,
+      class: 'Grade 8',
+      guardianName: 'Yusuf Ahmad',
+      guardianPhone: '+1234567892',
+      address: '789 Pine St, City',
+      enrollmentDate: '2024-02-01'
+    }
+  ]);
+
+  const [showModal, setShowModal] = useState(false);
+  const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [formData, setFormData] = useState({
+    name: '',
+    age: '',
+    class: '',
+    guardianName: '',
+    guardianPhone: '',
+    address: '',
+    enrollmentDate: ''
+  });
+
+  const filteredStudents = students.filter(student =>
+    student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    student.guardianName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    student.class.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (editingStudent) {
+      setStudents(students.map(student =>
+        student.id === editingStudent.id
+          ? { ...student, ...formData, age: parseInt(formData.age) }
+          : student
+      ));
+    } else {
+      const newStudent: Student = {
+        id: Date.now().toString(),
+        ...formData,
+        age: parseInt(formData.age)
+      };
+      setStudents([...students, newStudent]);
+    }
+
+    setShowModal(false);
+    setEditingStudent(null);
+    setFormData({
+      name: '',
+      age: '',
+      class: '',
+      guardianName: '',
+      guardianPhone: '',
+      address: '',
+      enrollmentDate: ''
+    });
+  };
+
+  const handleEdit = (student: Student) => {
+    setEditingStudent(student);
+    setFormData({
+      name: student.name,
+      age: student.age.toString(),
+      class: student.class,
+      guardianName: student.guardianName,
+      guardianPhone: student.guardianPhone,
+      address: student.address,
+      enrollmentDate: student.enrollmentDate
+    });
+    setShowModal(true);
+  };
+
+  const handleDelete = (id: string) => {
+    if (confirm('Are you sure you want to delete this student?')) {
+      setStudents(students.filter(student => student.id !== id));
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <h2 className="text-2xl font-bold text-gray-900">Students Management</h2>
+        <div className="flex gap-2">
+          <button
+            onClick={() => generatePDF('students-table', 'students-list.pdf')}
+            className="flex items-center space-x-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            <span>Export PDF</span>
+          </button>
+          <button
+            onClick={() => setShowModal(true)}
+            className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add Student</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+        <input
+          type="text"
+          placeholder="Search students..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+        />
+      </div>
+
+      {/* Students Table */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div id="students-table">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <div className="text-center mb-4">
+              <h1 className="text-2xl font-bold text-emerald-600">Islamic School Management System</h1>
+              <h2 className="text-xl font-semibold text-gray-800">Students List</h2>
+              <p className="text-gray-600">Generated on {new Date().toLocaleDateString()}</p>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Student
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Age
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Class
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Guardian
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Contact
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Enrollment Date
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider print:hidden">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filteredStudents.map((student) => (
+                  <tr key={student.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="flex-shrink-0 h-10 w-10">
+                          <div className="h-10 w-10 rounded-full bg-emerald-100 flex items-center justify-center">
+                            <User className="h-5 w-5 text-emerald-600" />
+                          </div>
+                        </div>
+                        <div className="ml-4">
+                          <div className="text-sm font-medium text-gray-900">{student.name}</div>
+                          <div className="text-sm text-gray-500">{student.address}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {student.age}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                        {student.class}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {student.guardianName}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center text-sm text-gray-900">
+                        <Phone className="h-4 w-4 mr-2 text-gray-400" />
+                        {student.guardianPhone}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {new Date(student.enrollmentDate).toLocaleDateString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium print:hidden">
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => handleEdit(student)}
+                          className="text-blue-600 hover:text-blue-900"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(student.id)}
+                          className="text-red-600 hover:text-red-900"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {/* Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                {editingStudent ? 'Edit Student' : 'Add New Student'}
+              </h3>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Student Name
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Age
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min="5"
+                    max="18"
+                    value={formData.age}
+                    onChange={(e) => setFormData({ ...formData, age: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Class
+                  </label>
+                  <select
+                    required
+                    value={formData.class}
+                    onChange={(e) => setFormData({ ...formData, class: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  >
+                    <option value="">Select Class</option>
+                    <option value="Grade 1">Grade 1</option>
+                    <option value="Grade 2">Grade 2</option>
+                    <option value="Grade 3">Grade 3</option>
+                    <option value="Grade 4">Grade 4</option>
+                    <option value="Grade 5">Grade 5</option>
+                    <option value="Grade 6">Grade 6</option>
+                    <option value="Grade 7">Grade 7</option>
+                    <option value="Grade 8">Grade 8</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Guardian Name
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.guardianName}
+                    onChange={(e) => setFormData({ ...formData, guardianName: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Guardian Phone
+                  </label>
+                  <input
+                    type="tel"
+                    required
+                    value={formData.guardianPhone}
+                    onChange={(e) => setFormData({ ...formData, guardianPhone: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Address
+                  </label>
+                  <textarea
+                    required
+                    value={formData.address}
+                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    rows={3}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Enrollment Date
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={formData.enrollmentDate}
+                    onChange={(e) => setFormData({ ...formData, enrollmentDate: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  />
+                </div>
+                <div className="flex justify-end space-x-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowModal(false);
+                      setEditingStudent(null);
+                      setFormData({
+                        name: '',
+                        age: '',
+                        class: '',
+                        guardianName: '',
+                        guardianPhone: '',
+                        address: '',
+                        enrollmentDate: ''
+                      });
+                    }}
+                    className="px-4 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+                  >
+                    {editingStudent ? 'Update' : 'Add'} Student
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default Students;
+import React, { useState } from 'react';
+import { Plus, Search, CreditCard as Edit, Trash2, Download, Printer, Clock, BookOpen } from 'lucide-react';
+import { generatePDF, printElement } from '../utils/pdfGenerator';
+
+interface TimetableEntry {
+  id: string;
+  classId: string;
+  className: string;
+  day: string;
+  subject: string;
+  startTime: string;
+  endTime: string;
+  teacher: string;
+}
+
+const Timetable: React.FC = () => {
+  const [timetableEntries, setTimetableEntries] = useState<TimetableEntry[]>([
+    {
+      id: '1',
+      classId: '1',
+      className: 'Grade 1',
+      day: 'Monday',
+      subject: 'Quran Recitation',
+      startTime: '08:00',
+      endTime: '09:00',
+      teacher: 'Ustadh Ahmad Hassan'
+    },
+    {
+      id: '2',
+      classId: '1',
+      className: 'Grade 1',
+      day: 'Monday',
+      subject: 'Arabic Language',
+      startTime: '09:00',
+      endTime: '10:00',
+      teacher: 'Ustadh Ahmad Hassan'
+    },
+    {
+      id: '3',
+      classId: '2',
+      className: 'Grade 2',
+      day: 'Monday',
+      subject: 'Islamic Studies',
+      startTime: '08:00',
+      endTime: '09:00',
+      teacher: 'Ustadha Fatima Omar'
+    },
+    {
+      id: '4',
+      classId: '1',
+      className: 'Grade 1',
+      day: 'Tuesday',
+      subject: 'Mathematics',
+      startTime: '08:00',
+      endTime: '09:00',
+      teacher: 'Ustadh Ahmad Hassan'
+    }
+  ]);
+
+  const [showModal, setShowModal] = useState(false);
+  const [editingEntry, setEditingEntry] = useState<TimetableEntry | null>(null);
+  const [selectedClass, setSelectedClass] = useState('all');
+  const [selectedDay, setSelectedDay] = useState('all');
+  const [formData, setFormData] = useState({
+    classId: '',
+    className: '',
+    day: '',
+    subject: '',
+    startTime: '',
+    endTime: '',
+    teacher: ''
+  });
+
+  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+  const classes = ['all', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8'];
+
+  const filteredEntries = timetableEntries.filter(entry => {
+    const matchesClass = selectedClass === 'all' || entry.className === selectedClass;
+    const matchesDay = selectedDay === 'all' || entry.day === selectedDay;
+    return matchesClass && matchesDay;
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (editingEntry) {
+      setTimetableEntries(entries =>
+        entries.map(entry =>
+          entry.id === editingEntry.id ? { ...entry, ...formData } : entry
+        )
+      );
+    } else {
+      const newEntry: TimetableEntry = {
+        id: Date.now().toString(),
+        ...formData
+      };
+      setTimetableEntries([...timetableEntries, newEntry]);
+    }
+
+    setShowModal(false);
+    setEditingEntry(null);
+    setFormData({
+      classId: '',
+      className: '',
+      day: '',
+      subject: '',
+      startTime: '',
+      endTime: '',
+      teacher: ''
+    });
+  };
+
+  const handleEdit = (entry: TimetableEntry) => {
+    setEditingEntry(entry);
+    setFormData(entry);
+    setShowModal(true);
+  };
+
+  const handleDelete = (id: string) => {
+    if (confirm('Are you sure you want to delete this timetable entry?')) {
+      setTimetableEntries(entries => entries.filter(entry => entry.id !== id));
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <h2 className="text-2xl font-bold text-gray-900">Timetable Management</h2>
+        <div className="flex gap-2">
+          <button
+            onClick={() => printElement('timetable-table')}
+            className="flex items-center space-x-2 bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors"
+          >
+            <Printer className="w-4 h-4" />
+            <span>Print</span>
+          </button>
+          <button
+            onClick={() => generatePDF('timetable-table', 'timetable.pdf')}
+            className="flex items-center space-x-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            <span>Export PDF</span>
+          </button>
+          <button
+            onClick={() => setShowModal(true)}
+            className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add Entry</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Class</label>
+            <select
+              value={selectedClass}
+              onChange={(e) => setSelectedClass(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+            >
+              {classes.map((cls) => (
+                <option key={cls} value={cls}>
+                  {cls === 'all' ? 'All Classes' : cls}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Day</label>
+            <select
+              value={selectedDay}
+              onChange={(e) => setSelectedDay(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+            >
+              <option value="all">All Days</option>
+              {days.map((day) => (
+                <option key={day} value={day}>{day}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Timetable Table */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div id="timetable-table">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <div className="text-center mb-4">
+              <h1 className="text-2xl font-bold text-emerald-600">Islamic School Management System</h1>
+              <h2 className="text-xl font-semibold text-gray-800">Class Timetable</h2>
+              <p className="text-gray-600">
+                {selectedClass === 'all' ? 'All Classes' : selectedClass} - 
+                {selectedDay === 'all' ? ' All Days' : ` ${selectedDay}`}
+              </p>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Class
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Day
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Subject
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Time
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Teacher
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider print:hidden">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filteredEntries.map((entry) => (
+                  <tr key={entry.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                        {entry.className}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {entry.day}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <BookOpen className="w-4 h-4 text-emerald-500 mr-2" />
+                        <span className="text-sm font-medium text-gray-900">{entry.subject}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center text-sm text-gray-900">
+                        <Clock className="w-4 h-4 text-gray-400 mr-2" />
+                        {entry.startTime} - {entry.endTime}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {entry.teacher}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium print:hidden">
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => handleEdit(entry)}
+                          className="text-blue-600 hover:text-blue-900"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(entry.id)}
+                          className="text-red-600 hover:text-red-900"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {/* Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                {editingEntry ? 'Edit Timetable Entry' : 'Add New Timetable Entry'}
+              </h3>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Class</label>
+                  <select
+                    required
+                    value={formData.className}
+                    onChange={(e) => setFormData({ ...formData, className: e.target.value, classId: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  >
+                    <option value="">Select Class</option>
+                    {classes.slice(1).map((cls) => (
+                      <option key={cls} value={cls}>{cls}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Day</label>
+                  <select
+                    required
+                    value={formData.day}
+                    onChange={(e) => setFormData({ ...formData, day: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  >
+                    <option value="">Select Day</option>
+                    {days.map((day) => (
+                      <option key={day} value={day}>{day}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.subject}
+                    onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    placeholder="e.g., Quran Recitation"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
+                    <input
+                      type="time"
+                      required
+                      value={formData.startTime}
+                      onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
+                    <input
+                      type="time"
+                      required
+                      value={formData.endTime}
+                      onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Teacher</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.teacher}
+                    onChange={(e) => setFormData({ ...formData, teacher: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    placeholder="e.g., Ustadh Ahmad Hassan"
+                  />
+                </div>
+                <div className="flex justify-end space-x-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowModal(false);
+                      setEditingEntry(null);
+                      setFormData({
+                        classId: '',
+                        className: '',
+                        day: '',
+                        subject: '',
+                        startTime: '',
+                        endTime: '',
+                        teacher: ''
+                      });
+                    }}
+                    className="px-4 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+                  >
+                    {editingEntry ? 'Update' : 'Add'} Entry
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default Timetable;
+import React, { useState } from 'react';
+import { Calendar, Download, Printer, Search, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { generatePDF, printElement } from '../utils/pdfGenerator';
+
+interface AttendanceRecord {
+  id: string;
+  studentId: string;
+  studentName: string;
+  class: string;
+  date: string;
+  status: 'present' | 'absent' | 'late';
+  timeIn?: string;
+}
+
+const Attendance: React.FC = () => {
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([
+    {
+      id: '1',
+      studentId: '1',
+      studentName: 'Ahmed Hassan',
+      class: 'Grade 6',
+      date: '2024-01-15',
+      status: 'present',
+      timeIn: '08:00'
+    },
+    {
+      id: '2',
+      studentId: '2',
+      studentName: 'Fatima Omar',
+      class: 'Grade 4',
+      date: '2024-01-15',
+      status: 'late',
+      timeIn: '08:30'
+    },
+    {
+      id: '3',
+      studentId: '3',
+      studentName: 'Muhammad Yusuf',
+      class: 'Grade 8',
+      date: '2024-01-15',
+      status: 'absent'
+    },
+    {
+      id: '4',
+      studentId: '1',
+      studentName: 'Ahmed Hassan',
+      class: 'Grade 6',
+      date: '2024-01-16',
+      status: 'present',
+      timeIn: '07:55'
+    },
+    {
+      id: '5',
+      studentId: '2',
+      studentName: 'Fatima Omar',
+      class: 'Grade 4',
+      date: '2024-01-16',
+      status: 'present',
+      timeIn: '08:05'
+    }
+  ]);
+
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedClass, setSelectedClass] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const classes = ['all', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8'];
+
+  const filteredRecords = attendanceRecords.filter(record => {
+    const matchesDate = record.date === selectedDate;
+    const matchesClass = selectedClass === 'all' || record.class === selectedClass;
+    const matchesSearch = record.studentName.toLowerCase().includes(searchTerm.toLowerCase());
+    return matchesDate && matchesClass && matchesSearch;
+  });
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'present':
+        return <CheckCircle className="w-5 h-5 text-green-500" />;
+      case 'absent':
+        return <XCircle className="w-5 h-5 text-red-500" />;
+      case 'late':
+        return <Clock className="w-5 h-5 text-yellow-500" />;
+      default:
+        return null;
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'present':
+        return 'bg-green-100 text-green-800';
+      case 'absent':
+        return 'bg-red-100 text-red-800';
+      case 'late':
+        return 'bg-yellow-100 text-yellow-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const updateAttendance = (recordId: string, newStatus: 'present' | 'absent' | 'late') => {
+    setAttendanceRecords(records =>
+      records.map(record =>
+        record.id === recordId
+          ? {
+              ...record,
+              status: newStatus,
+              timeIn: newStatus === 'present' ? new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }) : 
+                     newStatus === 'late' ? new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }) : 
+                     undefined
+            }
+          : record
+      )
+    );
+  };
+
+  const attendanceStats = {
+    total: filteredRecords.length,
+    present: filteredRecords.filter(r => r.status === 'present').length,
+    absent: filteredRecords.filter(r => r.status === 'absent').length,
+    late: filteredRecords.filter(r => r.status === 'late').length
+  };
+
+  const attendanceRate = attendanceStats.total > 0 
+    ? ((attendanceStats.present + attendanceStats.late) / attendanceStats.total * 100).toFixed(1)
+    : '0';
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <h2 className="text-2xl font-bold text-gray-900">Attendance Management</h2>
+        <div className="flex gap-2">
+          <button
+            onClick={() => printElement('attendance-table')}
+            className="flex items-center space-x-2 bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors"
+          >
+            <Printer className="w-4 h-4" />
+            <span>Print</span>
+          </button>
+          <button
+            onClick={() => generatePDF('attendance-table', `attendance-${selectedDate}.pdf`)}
+            className="flex items-center space-x-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            <span>Export PDF</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Date
+            </label>
+            <div className="relative">
+              <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Class
+            </label>
+            <select
+              value={selectedClass}
+              onChange={(e) => setSelectedClass(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+            >
+              {classes.map((cls) => (
+                <option key={cls} value={cls}>
+                  {cls === 'all' ? 'All Classes' : cls}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Search Student
+            </label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input
+                type="text"
+                placeholder="Search students..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Total Students</p>
+              <p className="text-3xl font-bold text-gray-900">{attendanceStats.total}</p>
+            </div>
+            <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+              <span className="text-blue-600 font-bold">{attendanceStats.total}</span>
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Present</p>
+              <p className="text-3xl font-bold text-green-600">{attendanceStats.present}</p>
+            </div>
+            <CheckCircle className="w-8 h-8 text-green-500" />
+          </div>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Late</p>
+              <p className="text-3xl font-bold text-yellow-600">{attendanceStats.late}</p>
+            </div>
+            <Clock className="w-8 h-8 text-yellow-500" />
+          </div>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Absent</p>
+              <p className="text-3xl font-bold text-red-600">{attendanceStats.absent}</p>
+            </div>
+            <XCircle className="w-8 h-8 text-red-500" />
+          </div>
+        </div>
+      </div>
+
+      {/* Attendance Table */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div id="attendance-table">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <div className="text-center mb-4">
+              <h1 className="text-2xl font-bold text-emerald-600">Islamic School Management System</h1>
+              <h2 className="text-xl font-semibold text-gray-800">Attendance Report</h2>
+              <p className="text-gray-600">Date: {new Date(selectedDate).toLocaleDateString()}</p>
+              <p className="text-gray-600">Class: {selectedClass === 'all' ? 'All Classes' : selectedClass}</p>
+              <p className="text-lg font-semibold text-gray-800 mt-2">
+                Attendance Rate: {attendanceRate}%
+              </p>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Student
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Class
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Time In
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider print:hidden">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filteredRecords.map((record) => (
+                  <tr key={record.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">{record.studentName}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                        {record.class}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center space-x-2">
+                        {getStatusIcon(record.status)}
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(record.status)}`}>
+                          {record.status.charAt(0).toUpperCase() + record.status.slice(1)}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {record.timeIn || '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium print:hidden">
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => updateAttendance(record.id, 'present')}
+                          className={`px-2 py-1 rounded text-xs ${
+                            record.status === 'present' 
+                              ? 'bg-green-600 text-white' 
+                              : 'bg-green-100 text-green-800 hover:bg-green-200'
+                          }`}
+                        >
+                          Present
+                        </button>
+                        <button
+                          onClick={() => updateAttendance(record.id, 'late')}
+                          className={`px-2 py-1 rounded text-xs ${
+                            record.status === 'late' 
+                              ? 'bg-yellow-600 text-white' 
+                              : 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'
+                          }`}
+                        >
+                          Late
+                        </button>
+                        <button
+                          onClick={() => updateAttendance(record.id, 'absent')}
+                          className={`px-2 py-1 rounded text-xs ${
+                            record.status === 'absent' 
+                              ? 'bg-red-600 text-white' 
+                              : 'bg-red-100 text-red-800 hover:bg-red-200'
+                          }`}
+                        >
+                          Absent
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Attendance;
+import React, { useState } from 'react';
+import { Plus, Search, CreditCard as Edit, Trash2, Users, GraduationCap } from 'lucide-react';
+
+interface Class {
+  id: string;
+  name: string;
+  teacherName: string;
+  capacity: number;
+  currentStudents: number;
+  subject: string;
+  schedule: string;
+}
+
+const Classes: React.FC = () => {
+  const [classes, setClasses] = useState<Class[]>([
+    {
+      id: '1',
+      name: 'Grade 1',
+      teacherName: 'Ustadh Ahmad Hassan',
+      capacity: 25,
+      currentStudents: 22,
+      subject: 'Islamic Studies & Arabic',
+      schedule: 'Mon-Fri 8:00-12:00'
+    },
+    {
+      id: '2',
+      name: 'Grade 2',
+      teacherName: 'Ustadha Fatima Omar',
+      capacity: 25,
+      currentStudents: 20,
+      subject: 'Quran & Basic Math',
+      schedule: 'Mon-Fri 8:00-12:00'
+    },
+    {
+      id: '3',
+      name: 'Grade 3',
+      teacherName: 'Ustadh Muhammad Ali',
+      capacity: 30,
+      currentStudents: 28,
+      subject: 'Islamic History & Science',
+      schedule: 'Mon-Fri 8:00-1:00'
+    },
+    {
+      id: '4',
+      name: 'Grade 4',
+      teacherName: 'Ustadha Aisha Ibrahim',
+      capacity: 30,
+      currentStudents: 25,
+      subject: 'Advanced Arabic & Math',
+      schedule: 'Mon-Fri 8:00-1:00'
+    }
+  ]);
+
+  const [showModal, setShowModal] = useState(false);
+  const [editingClass, setEditingClass] = useState<Class | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [formData, setFormData] = useState({
+    name: '',
+    teacherName: '',
+    capacity: '',
+    subject: '',
+    schedule: ''
+  });
+
+  const filteredClasses = classes.filter(cls =>
+    cls.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    cls.teacherName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    cls.subject.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (editingClass) {
+      setClasses(classes.map(cls =>
+        cls.id === editingClass.id
+          ? { 
+              ...cls, 
+              ...formData, 
+              capacity: parseInt(formData.capacity)
+            }
+          : cls
+      ));
+    } else {
+      const newClass: Class = {
+        id: Date.now().toString(),
+        ...formData,
+        capacity: parseInt(formData.capacity),
+        currentStudents: 0
+      };
+      setClasses([...classes, newClass]);
+    }
+
+    setShowModal(false);
+    setEditingClass(null);
+    setFormData({
+      name: '',
+      teacherName: '',
+      capacity: '',
+      subject: '',
+      schedule: ''
+    });
+  };
+
+  const handleEdit = (cls: Class) => {
+    setEditingClass(cls);
+    setFormData({
+      name: cls.name,
+      teacherName: cls.teacherName,
+      capacity: cls.capacity.toString(),
+      subject: cls.subject,
+      schedule: cls.schedule
+    });
+    setShowModal(true);
+  };
+
+  const handleDelete = (id: string) => {
+    if (confirm('Are you sure you want to delete this class?')) {
+      setClasses(classes.filter(cls => cls.id !== id));
+    }
+  };
+
+  const getCapacityColor = (current: number, capacity: number) => {
+    const percentage = (current / capacity) * 100;
+    if (percentage >= 90) return 'text-red-600 bg-red-100';
+    if (percentage >= 75) return 'text-yellow-600 bg-yellow-100';
+    return 'text-green-600 bg-green-100';
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <h2 className="text-2xl font-bold text-gray-900">Classes Management</h2>
+        <button
+          onClick={() => setShowModal(true)}
+          className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          <Plus className="w-4 h-4" />
+          <span>Add Class</span>
+        </button>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Total Classes</p>
+              <p className="text-3xl font-bold text-gray-900">{classes.length}</p>
+            </div>
+            <GraduationCap className="w-8 h-8 text-blue-500" />
+          </div>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Total Students</p>
+              <p className="text-3xl font-bold text-gray-900">
+                {classes.reduce((sum, cls) => sum + cls.currentStudents, 0)}
+              </p>
+            </div>
+            <Users className="w-8 h-8 text-emerald-500" />
+          </div>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Average Capacity</p>
+              <p className="text-3xl font-bold text-gray-900">
+                {Math.round(classes.reduce((sum, cls) => sum + (cls.currentStudents / cls.capacity * 100), 0) / classes.length)}%
+              </p>
+            </div>
+            <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
+              <span className="text-purple-600 font-bold">%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+        <input
+          type="text"
+          placeholder="Search classes..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+        />
+      </div>
+
+      {/* Classes Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {filteredClasses.map((cls) => (
+          <div key={cls.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">{cls.name}</h3>
+                <p className="text-sm text-gray-600">{cls.subject}</p>
+              </div>
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => handleEdit(cls)}
+                  className="text-blue-600 hover:text-blue-900"
+                >
+                  <Edit className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => handleDelete(cls.id)}
+                  className="text-red-600 hover:text-red-900"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center space-x-2">
+                <GraduationCap className="w-4 h-4 text-gray-400" />
+                <span className="text-sm text-gray-600">{cls.teacherName}</span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Capacity</span>
+                <span className={`px-2 py-1 rounded-full text-xs font-medium ${getCapacityColor(cls.currentStudents, cls.capacity)}`}>
+                  {cls.currentStudents}/{cls.capacity}
+                </span>
+              </div>
+
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div
+                  className="bg-emerald-600 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${(cls.currentStudents / cls.capacity) * 100}%` }}
+                />
+              </div>
+
+              <div className="pt-2 border-t border-gray-100">
+                <p className="text-xs text-gray-500">Schedule</p>
+                <p className="text-sm text-gray-700">{cls.schedule}</p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full">
+            <div className="p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                {editingClass ? 'Edit Class' : 'Add New Class'}
+              </h3>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Class Name
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    placeholder="e.g., Grade 5"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Class Teacher
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.teacherName}
+                    onChange={(e) => setFormData({ ...formData, teacherName: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    placeholder="e.g., Ustadh Ahmad Hassan"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Capacity
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min="1"
+                    max="50"
+                    value={formData.capacity}
+                    onChange={(e) => setFormData({ ...formData, capacity: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Subject
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.subject}
+                    onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    placeholder="e.g., Islamic Studies & Arabic"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Schedule
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.schedule}
+                    onChange={(e) => setFormData({ ...formData, schedule: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    placeholder="e.g., Mon-Fri 8:00-12:00"
+                  />
+                </div>
+                <div className="flex justify-end space-x-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowModal(false);
+                      setEditingClass(null);
+                      setFormData({
+                        name: '',
+                        teacherName: '',
+                        capacity: '',
+                        subject: '',
+                        schedule: ''
+                      });
+                    }}
+                    className="px-4 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+                  >
+                    {editingClass ? 'Update' : 'Add'} Class
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default Classes;
+import React from 'react';
+import { Users, DollarSign, GraduationCap, Calendar, TrendingUp, BookOpen } from 'lucide-react';
+
+const Dashboard: React.FC = () => {
+  const stats = [
+    {
+      title: 'Total Students',
+      value: '245',
+      change: '+12%',
+      icon: Users,
+      color: 'bg-blue-500',
+    },
+    {
+      title: 'Total Classes',
+      value: '18',
+      change: '+2',
+      icon: GraduationCap,
+      color: 'bg-emerald-500',
+    },
+    {
+      title: 'Monthly Expenses',
+      value: '$12,450',
+      change: '-5%',
+      icon: DollarSign,
+      color: 'bg-red-500',
+    },
+    {
+      title: 'Attendance Rate',
+      value: '94.2%',
+      change: '+2.1%',
+      icon: Calendar,
+      color: 'bg-purple-500',
+    },
+  ];
+
+  const recentActivities = [
+    { action: 'New student enrolled', time: '2 hours ago', type: 'success' },
+    { action: 'Fee payment received', time: '4 hours ago', type: 'info' },
+    { action: 'Exam scheduled for Grade 5', time: '6 hours ago', type: 'warning' },
+    { action: 'Monthly expenses updated', time: '1 day ago', type: 'neutral' },
+  ];
+
+  return (
+    <div className="space-y-6">
+      {/* Welcome Section */}
+      <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 rounded-lg p-6 text-white">
+        <h2 className="text-3xl font-bold mb-2">Assalamu Alaikum</h2>
+        <p className="text-emerald-100">Welcome to the Islamic School Management System</p>
+        <div className="mt-4 flex items-center space-x-4">
+          <div className="flex items-center space-x-2">
+            <BookOpen className="w-5 h-5" />
+            <span>Academic Year 2024-2025</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Calendar className="w-5 h-5" />
+            <span>Semester 1</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+        {stats.map((stat, index) => {
+          const Icon = stat.icon;
+          return (
+            <div key={index} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">{stat.title}</p>
+                  <p className="text-3xl font-bold text-gray-900 mt-2">{stat.value}</p>
+                  <div className="flex items-center mt-2">
+                    <TrendingUp className="w-4 h-4 text-green-500 mr-1" />
+                    <span className="text-sm text-green-600">{stat.change}</span>
+                  </div>
+                </div>
+                <div className={`${stat.color} p-3 rounded-lg`}>
+                  <Icon className="w-6 h-6 text-white" />
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Recent Activities and Quick Actions */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Recent Activities */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Activities</h3>
+          <div className="space-y-4">
+            {recentActivities.map((activity, index) => (
+              <div key={index} className="flex items-center space-x-3">
+                <div className={`w-2 h-2 rounded-full ${
+                  activity.type === 'success' ? 'bg-green-500' :
+                  activity.type === 'info' ? 'bg-blue-500' :
+                  activity.type === 'warning' ? 'bg-yellow-500' :
+                  'bg-gray-400'
+                }`} />
+                <div className="flex-1">
+                  <p className="text-sm text-gray-900">{activity.action}</p>
+                  <p className="text-xs text-gray-500">{activity.time}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
+          <div className="grid grid-cols-2 gap-4">
+            <button className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+              <Users className="w-6 h-6 text-blue-500 mx-auto mb-2" />
+              <span className="text-sm font-medium">Add Student</span>
+            </button>
+            <button className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+              <Calendar className="w-6 h-6 text-emerald-500 mx-auto mb-2" />
+              <span className="text-sm font-medium">Mark Attendance</span>
+            </button>
+            <button className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+              <DollarSign className="w-6 h-6 text-red-500 mx-auto mb-2" />
+              <span className="text-sm font-medium">Add Expense</span>
+            </button>
+            <button className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+              <GraduationCap className="w-6 h-6 text-purple-500 mx-auto mb-2" />
+              <span className="text-sm font-medium">Create Class</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Islamic Quote */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 text-center">
+        <div className="text-2xl text-emerald-600 mb-2">﷽</div>
+        <p className="text-lg text-gray-700 italic mb-2">
+          "وَمَن يَتَّقِ اللَّهَ يَجْعَل لَّهُ مَخْرَجًا"
+        </p>
+        <p className="text-md text-gray-600 mb-2">
+          "And whoever fears Allah - He will make for him a way out"
+        </p>
+        <p className="text-sm text-gray-500">Quran 65:2</p>
+      </div>
+    </div>
+  );
+};
+
+export default Dashboard;
+import React, { useState } from 'react';
+import { Plus, Search, CreditCard as Edit, Trash2, Download, Printer, FileText, Calendar } from 'lucide-react';
+import { generatePDF, printElement } from '../utils/pdfGenerator';
+
+interface Exam {
+  id: string;
+  subject: string;
+  classId: string;
+  className: string;
+  date: string;
+  time: string;
+  duration: number;
+  totalMarks: number;
+  teacher: string;
+  instructions: string;
+}
+
+const Exams: React.FC = () => {
+  const [exams, setExams] = useState<Exam[]>([
+    {
+      id: '1',
+      subject: 'Quran Recitation',
+      classId: '1',
+      className: 'Grade 1',
+      date: '2024-02-15',
+      time: '09:00',
+      duration: 60,
+      totalMarks: 50,
+      teacher: 'Ustadh Ahmad Hassan',
+      instructions: 'Students should recite the assigned Surahs with proper Tajweed. Bring your own Quran.'
+    },
+    {
+      id: '2',
+      subject: 'Islamic Studies',
+      classId: '2',
+      className: 'Grade 2',
+      date: '2024-02-16',
+      time: '10:00',
+      duration: 90,
+      totalMarks: 100,
+      teacher: 'Ustadha Fatima Omar',
+      instructions: 'Written examination covering the Five Pillars of Islam and basic Islamic history.'
+    },
+    {
+      id: '3',
+      subject: 'Arabic Language',
+      classId: '3',
+      className: 'Grade 3',
+      date: '2024-02-17',
+      time: '08:30',
+      duration: 120,
+      totalMarks: 100,
+      teacher: 'Ustadh Muhammad Ali',
+      instructions: 'Grammar, vocabulary, and reading comprehension. Dictionary not allowed.'
+    }
+  ]);
+
+  const [showModal, setShowModal] = useState(false);
+  const [editingExam, setEditingExam] = useState<Exam | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedClass, setSelectedClass] = useState('all');
+  const [formData, setFormData] = useState({
+    subject: '',
+    classId: '',
+    className: '',
+    date: '',
+    time: '',
+    duration: '',
+    totalMarks: '',
+    teacher: '',
+    instructions: ''
+  });
+
+  const classes = ['all', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8'];
+
+  const filteredExams = exams.filter(exam => {
+    const matchesSearch = exam.subject.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         exam.teacher.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesClass = selectedClass === 'all' || exam.className === selectedClass;
+    return matchesSearch && matchesClass;
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (editingExam) {
+      setExams(exams =>
+        exams.map(exam =>
+          exam.id === editingExam.id
+            ? {
+                ...exam,
+                ...formData,
+                duration: parseInt(formData.duration),
+                totalMarks: parseInt(formData.totalMarks)
+              }
+            : exam
+        )
+      );
+    } else {
+      const newExam: Exam = {
+        id: Date.now().toString(),
+        ...formData,
+        duration: parseInt(formData.duration),
+        totalMarks: parseInt(formData.totalMarks)
+      };
+      setExams([...exams, newExam]);
+    }
+
+    setShowModal(false);
+    setEditingExam(null);
+    setFormData({
+      subject: '',
+      classId: '',
+      className: '',
+      date: '',
+      time: '',
+      duration: '',
+      totalMarks: '',
+      teacher: '',
+      instructions: ''
+    });
+  };
+
+  const handleEdit = (exam: Exam) => {
+    setEditingExam(exam);
+    setFormData({
+      ...exam,
+      duration: exam.duration.toString(),
+      totalMarks: exam.totalMarks.toString()
+    });
+    setShowModal(true);
+  };
+
+  const handleDelete = (id: string) => {
+    if (confirm('Are you sure you want to delete this exam?')) {
+      setExams(exams => exams.filter(exam => exam.id !== id));
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <h2 className="text-2xl font-bold text-gray-900">Exams Management</h2>
+        <div className="flex gap-2">
+          <button
+            onClick={() => printElement('exams-table')}
+            className="flex items-center space-x-2 bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors"
+          >
+            <Printer className="w-4 h-4" />
+            <span>Print</span>
+          </button>
+          <button
+            onClick={() => generatePDF('exams-table', 'exams-schedule.pdf')}
+            className="flex items-center space-x-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            <span>Export PDF</span>
+          </button>
+          <button
+            onClick={() => setShowModal(true)}
+            className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add Exam</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Total Exams</p>
+              <p className="text-3xl font-bold text-gray-900">{exams.length}</p>
+            </div>
+            <FileText className="w-8 h-8 text-blue-500" />
+          </div>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">This Week</p>
+              <p className="text-3xl font-bold text-emerald-600">
+                {exams.filter(exam => {
+                  const examDate = new Date(exam.date);
+                  const today = new Date();
+                  const weekFromNow = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+                  return examDate >= today && examDate <= weekFromNow;
+                }).length}
+              </p>
+            </div>
+            <Calendar className="w-8 h-8 text-emerald-500" />
+          </div>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Average Duration</p>
+              <p className="text-3xl font-bold text-purple-600">
+                {Math.round(exams.reduce((sum, exam) => sum + exam.duration, 0) / exams.length || 0)} min
+              </p>
+            </div>
+            <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
+              <span className="text-purple-600 font-bold">⏱</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <input
+                type="text"
+                placeholder="Search exams..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Class</label>
+            <select
+              value={selectedClass}
+              onChange={(e) => setSelectedClass(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+            >
+              {classes.map((cls) => (
+                <option key={cls} value={cls}>
+                  {cls === 'all' ? 'All Classes' : cls}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Exams Table */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div id="exams-table">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <div className="text-center mb-4">
+              <h1 className="text-2xl font-bold text-emerald-600">Islamic School Management System</h1>
+              <h2 className="text-xl font-semibold text-gray-800">Examination Schedule</h2>
+              <p className="text-gray-600">Academic Year 2024-2025</p>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Subject
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Class
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Date & Time
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Duration
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Total Marks
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Teacher
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider print:hidden">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filteredExams.map((exam) => (
+                  <tr key={exam.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <FileText className="w-5 h-5 text-emerald-500 mr-3" />
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">{exam.subject}</div>
+                          <div className="text-sm text-gray-500">{exam.instructions.substring(0, 50)}...</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                        {exam.className}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">
+                        {new Date(exam.date).toLocaleDateString()}
+                      </div>
+                      <div className="text-sm text-gray-500">{exam.time}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {exam.duration} minutes
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {exam.totalMarks} marks
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {exam.teacher}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium print:hidden">
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => handleEdit(exam)}
+                          className="text-blue-600 hover:text-blue-900"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(exam.id)}
+                          className="text-red-600 hover:text-red-900"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {/* Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                {editingExam ? 'Edit Exam' : 'Add New Exam'}
+              </h3>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.subject}
+                    onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    placeholder="e.g., Quran Recitation"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Class</label>
+                  <select
+                    required
+                    value={formData.className}
+                    onChange={(e) => setFormData({ ...formData, className: e.target.value, classId: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  >
+                    <option value="">Select Class</option>
+                    {classes.slice(1).map((cls) => (
+                      <option key={cls} value={cls}>{cls}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                    <input
+                      type="date"
+                      required
+                      value={formData.date}
+                      onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Time</label>
+                    <input
+                      type="time"
+                      required
+                      value={formData.time}
+                      onChange={(e) => setFormData({ ...formData, time: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Duration (minutes)</label>
+                    <input
+                      type="number"
+                      required
+                      min="30"
+                      max="180"
+                      value={formData.duration}
+                      onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Total Marks</label>
+                    <input
+                      type="number"
+                      required
+                      min="10"
+                      max="200"
+                      value={formData.totalMarks}
+                      onChange={(e) => setFormData({ ...formData, totalMarks: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Teacher</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.teacher}
+                    onChange={(e) => setFormData({ ...formData, teacher: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    placeholder="e.g., Ustadh Ahmad Hassan"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Instructions</label>
+                  <textarea
+                    required
+                    value={formData.instructions}
+                    onChange={(e) => setFormData({ ...formData, instructions: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    rows={3}
+                    placeholder="Exam instructions for students..."
+                  />
+                </div>
+                <div className="flex justify-end space-x-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowModal(false);
+                      setEditingExam(null);
+                      setFormData({
+                        subject: '',
+                        classId: '',
+                        className: '',
+                        date: '',
+                        time: '',
+                        duration: '',
+                        totalMarks: '',
+                        teacher: '',
+                        instructions: ''
+                      });
+                    }}
+                    className="px-4 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+                  >
+                    {editingExam ? 'Update' : 'Add'} Exam
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default Exams;
